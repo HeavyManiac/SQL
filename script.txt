@@ -1,0 +1,791 @@
+-- DB NAME C19
+/* Index
+	CATALOGS:
+		[dbo].[BusinessType]
+		[dbo].[Location]
+
+	DATA TABLES:
+		[dbo].[User]
+		[dbo].[Business]
+		[dbo].[Numbers]
+		[dbo].[Probability]
+	
+	FUNCTIONS:
+		[dbo].[CapitalizeFirstLetter]
+
+	STORED PROCEDURES:
+		[dbo].[BusinessUpSert]
+		[dbo].[BusinessTypeUpSert]
+		[dbo].[LocationUpSert]
+		[dbo].[BusinessNumberUpsert] << Main process to insert/update one record at the time
+		[dbo].[BusinessNumbers] << Main input for all numbers of a business (input parameter: Table), Business ID as Key 
+		[dbo].[DetermineGroup] << For a Business calculate and determine group
+
+	VIEW
+		[dbo].[Prediction] // VIEW with the totals and group DetermineGroupd
+	
+	SECURITY
+		GROUP with access: public
+*/
+
+
+USE [c19]
+GO
+
+/****** Object:  Table [dbo].[Business]    Script Date: 2020-07-23 6:17:30 PM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+/**** CATALOGS ****/
+SELECT 'CATALOGS - 2 '
+GO
+
+/* CATALOGS: [dbo].[BusinessType] */
+	Drop table if exists [dbo].[BusinessType]
+	Go
+
+	CREATE TABLE [dbo].[BusinessType](
+		[ID] [int] IDENTITY(1,1) NOT NULL,
+		[BusinessType] [nvarchar](50) NULL,
+		[BusinessName] [nvarchar](50) NULL,
+		[Description] [nvarchar](150) NULL
+)	ON [PRIMARY]
+	GO
+	
+	GRANT SELECT, INSERT, UPDATE ON OBJECT::[dbo].[BusinessType]
+	TO public;
+
+	/* Index, not sure if need it for this table*/
+	/*
+	drop index if exists [dbo].[BusinessType].[IDX_BT]
+	GO
+
+	create index IDX_BT
+	On [DBO].[BusinessType] (ID)
+
+	drop index if exists [dbo].[BusinessType].[IDX_BT_NAME]
+	GO
+
+	create index IDX_BT_NAME
+	On [DBO].[BusinessType] (BusinessType)
+	GO
+	select 'Index created for : [dbo].[BusinessType]'
+	GO
+	*/
+
+SELECT 'CATALOGS: [dbo].[BusinessType]'
+GO
+	INSERT INTO [dbo].[BusinessType]
+		([BusinessType],[BusinessName],[Description])
+	VALUES
+		('Retailer','Retailer','Retailer')
+	Go
+
+/* CATALOGS: Location */
+	Drop table if exists [dbo].[Location]
+	Go
+
+	CREATE TABLE [dbo].[Location](
+		[ID] [int] IDENTITY(1,1) NOT NULL,
+		[City] [nvarchar](150) NOT NULL,
+		[State] [nvarchar](150) NOT NULL,
+		[Country] [nvarchar](150) NOT NULL
+	) ON [PRIMARY]
+	GO
+	GRANT SELECT, INSERT, UPDATE ON OBJECT::[dbo].[Location]
+	TO public;
+	GO
+
+SELECT 'CATALOGS: [dbo].[Location]'
+GO
+	/* load location catalog */
+	INSERT INTO [dbo].[Location]
+		([City], [State], [Country])
+	VALUES
+		('Calgary','Alberta','Canada')
+	GO
+	INSERT INTO [dbo].[Location]
+		([City], [State], [Country])
+	VALUES
+		('Edmonton','Alberta','Canada')
+	GO
+	INSERT INTO [dbo].[Location]
+		([City], [State], [Country])
+	VALUES
+		('Airdrie','Alberta','Canada')
+	GO
+
+/*** DATA TABLES: 5 ***/
+SELECT 'DATA TABLES 5'
+GO
+/* Data table: User */
+	Drop table if exists [dbo].[User]
+	Go
+
+	CREATE TABLE [dbo].[User](
+		[ID] [int] IDENTITY(1,1) NOT NULL,
+		[Name] [nvarchar](150) NOT NULL,
+		[Email] [nvarchar](150) NULL
+	) ON [PRIMARY]
+	GO
+	GRANT SELECT, INSERT, UPDATE ON OBJECT::[dbo].[User]
+		TO public;
+	GO
+SELECT 'DATA TABLE: [dbo].[User]'
+GO
+	INSERT INTO [dbo].[User]
+		([Name], [Email])
+	VALUES
+		('Joe Gibson','j@Gibson.com')
+	GO
+	INSERT INTO [dbo].[User]
+		([Name], [Email])
+	VALUES
+		('Peter Jackson','pj@company.com')
+	go
+
+/* data table: Business */	
+	Drop table if exists [dbo].[Business]
+	Go
+
+	CREATE TABLE [dbo].[Business](
+		[ID] [int] IDENTITY(1,1) NOT NULL,
+		[Name] [nvarchar](150) NOT NULL,
+		[UserId] int NOT NULL,
+		[Type] int NOT NULL,
+		[Location] int NOT NULL
+	) ON [PRIMARY]
+	GO
+	GRANT SELECT, INSERT, UPDATE ON OBJECT::[dbo].[Business]
+	TO public;
+	GO	
+select 'DATA TABLE: [dbo].[Business]'
+GO
+	INSERT INTO [dbo].[Business]
+	([Name], [UserId],[Type],[Location]) 
+	VALUES	('Joe Shoes', 1,1,1)
+	GO
+
+/* Data table: Numbers */
+	Drop table if exists [dbo].[Numbers]
+	Go
+
+	CREATE TABLE [dbo].[Numbers](
+		[ID] [int] NOT NULL,
+		[Year] [int] NOT NULL,
+		[Month] [int] NOT NULL,
+		[Open] [bit] NOT NULL,
+		[Employees] [int] NOT NULL,
+		[Revenue] [money] NOT NULL,
+		[Losses] [money] NOT NULL,
+		[Operation] [money] NOT NULL,
+		[Taxes] [money] NOT NULL,
+		[Group] [money] NULL,
+	) ON [PRIMARY]
+	GO
+	GRANT SELECT, INSERT, UPDATE ON OBJECT::[dbo].[Numbers]
+	TO public;
+	GO
+
+SELECT 'DATA TABLE: [dbo].[Numbers]'
+GO
+	/*
+	-- Triggers 
+	Drop Trigger if exists [dbo].[SetGroup]	
+	go
+	
+	CREATE TRIGGER [dbo].[SetGroup] ON [dbo].[Numbers] AFTER INSERT, UPDATE 
+	AS
+		BEGIN
+			UPDATE Num
+			SET [Group] = i.Losses + i.Operation + i.Revenue
+			FROM [dbo].[Numbers] as Num
+			Inner Join Inserted i
+			on Num.[ID] = i.[ID] and Num.[Year] = i.[Year] and Num.[Month] = i.[Month];
+		END
+	GO
+	*/
+
+	INSERT INTO [dbo].[Numbers]
+	([ID], [Year],[Month],[Open],[Employees],[Revenue],[Losses], [Operation], [Taxes] )
+	VALUES
+	(1,2018,0,1,10,828241.00,58804,0,0)
+	GO
+	INSERT INTO [dbo].[Numbers]
+	([ID], [Year],[Month],[Open],[Employees],[Revenue],[Losses], [Operation], [Taxes] )
+	VALUES
+	(1,2019,0,1,10,828241.00,5804,0,0)
+	GO
+	INSERT INTO [dbo].[Numbers]
+	([ID], [Year],[Month],[Open],[Employees],[Revenue],[Losses], [Operation], [Taxes] )
+	VALUES
+	(1,2020,0,1,10,928241.00,58805,50,20)
+	GO
+
+/* DATA TABLE: PROBABILITY */
+	Drop table if exists [dbo].[Probability]
+	Go
+	CREATE TABLE [dbo].[Probability](
+		[BusinessID] int NOT NULL,
+		[Type] int NOT NULL,
+		[Location] int NOT NULL,
+		[Open] bit NOT NULL,
+		[Years] int NOT NULL,
+		[TotalRevenue] [money] NOT NULL,
+		[TotalLosses] [money] NOT NULL,
+		[TotalOperation] [money] NOT NULL,
+		[TotalTaxes] [money] NOT NULL,
+		[Group] [money] NOT NULL
+	)
+	GO
+	GRANT SELECT, INSERT, UPDATE ON OBJECT::[dbo].[Probability]
+	TO public;
+	GO
+select 'DATA TABLE: [dbo].[Probability]'
+GO
+
+/* FUNCTIONS */
+SELECT 'FUNCTIONS - 1'
+GO
+	/* FUNCTION CapitalizeFirstLetter */
+
+	drop function if exists [dbo].[CapitalizeFirstLetter]
+	GO
+
+	CREATE FUNCTION [dbo].[CapitalizeFirstLetter]
+	(		@string VARCHAR(200)
+	)
+	RETURNS VARCHAR(200)
+	AS
+	BEGIN
+
+		DECLARE @Index INT,
+		@ResultString VARCHAR(200)--result string size should equal to the @string variable size
+	
+		--Initialize the variables
+		SET @Index = 1
+		SET @ResultString = ''
+
+		WHILE (@Index <LEN(@string)+1)
+		BEGIN
+			IF (@Index = 1)--first letter of the string
+			BEGIN
+				--make the first letter capital
+				SET @ResultString = @ResultString + UPPER(SUBSTRING(@string, @Index, 1))
+				SET @Index = @Index+ 1--increase the index
+			END
+			-- IF the previous character is space or '-' or next character is '-'
+			ELSE IF ((SUBSTRING(@string, @Index-1, 1) =' 'or SUBSTRING(@string, @Index-1, 1) ='-' or SUBSTRING(@string, @Index+1, 1) ='-') and @Index+1 <> LEN(@string))
+			BEGIN
+				--make the letter capital
+				SET	@ResultString = @ResultString + UPPER(SUBSTRING(@string,@Index, 1))
+				SET	@Index = @Index +1--increase the index
+			END
+			ELSE -- all others
+			BEGIN
+				-- make the letter simple
+				SET	@ResultString = @ResultString + LOWER(SUBSTRING(@string,@Index, 1))
+				SET	@Index = @Index +1--incerase the index
+			END
+		END	--END of the loop
+
+		IF (@@ERROR <> 0)-- any error occur return the sEND string
+			BEGIN
+				SET	@ResultString = @string
+			END
+		-- IF no error found return the new string
+	
+		RETURN @ResultString
+	END
+	GO
+	
+	GRANT EXECUTE ON OBJECT::[dbo].[CapitalizeFirstLetter]
+	TO public;
+	GO
+SELECT ' FUNCTIONS: [dbo].[CapitalizeFirstLetter]'
+GO
+/* end of functions */
+
+/* STORED PROCEDURE */
+SELECT 'STORED PROCEDURE 5'
+GO
+
+/* STORED PROCEDURE: [dbo].[BusinessUpSert]*/
+	drop proc if exists [dbo].[BusinessUpSert]
+	GO
+
+	create procedure [dbo].[BusinessUpSert]
+		@Name nvarchar(150) ,
+		@UserId int ,
+		@Type int ,
+		@Location int ,
+		@BID int Output
+	AS
+	BEGIN
+		Begin Transaction
+		Begin try
+			Select @BID = B.[ID] from [dbo].[Business] B where B.[Name] = @Name
+			If (@BID IS NOT NULL)
+			Begin
+				Update [dbo].[Business] 
+				set [Type] = @Type, 
+					[Location] = @Location
+				Where ID = @BID
+			End
+			Else
+			Begin
+				INSERT INTO [dbo].[Business]
+				([Name],[Location],[Type],[UserId])
+				values (@Name, @Location, @Type, @UserId)
+
+				Select @BID = B.[ID] from [dbo].[Business] B where B.[Name] = @Name
+			End
+			IF @@TRANCOUNT > 0 commit transaction;
+		End try
+		Begin Catch
+			IF @@TRANCOUNT > 0  
+			      ROLLBACK TRANSACTION;
+			Select @BID = -1;
+			SELECT ERROR_NUMBER() AS ErrorNumber, ERROR_SEVERITY() AS ErrorSeverity ,ERROR_STATE() AS ErrorState  
+				,ERROR_PROCEDURE() AS ErrorProcedure,ERROR_LINE() AS ErrorLine,ERROR_MESSAGE() AS ErrorMessage; 
+		End catch
+	END
+	GO
+	GRANT EXECUTE ON OBJECT::[dbo].[BusinessUpSert]
+	TO public;
+	GO
+SELECT 'STORED PROCEDURE: [dbo].[BusinessUpSert]'
+GO
+
+/* STORED PROCEDURE: [dbo].[BusinessTypeUpSert] */
+
+	drop proc if exists [dbo].[BusinessTypeUpSert]
+	GO
+
+	create procedure [dbo].[BusinessTypeUpSert]
+		@BusinessType nvarchar(150),
+		@BusinessName nvarchar(150),
+		@Description nvarchar(150),
+		@BTID int Output
+	AS
+	BEGIN
+		Begin Transaction
+		Begin try
+			Select @BTID = BT.[ID] from [dbo].[BusinessType] BT where BT.[BusinessType] = @BusinessType
+		
+			If (@BTID IS NOT NULL)
+			Begin
+				Update [dbo].[BusinessType] 
+				set [BusinessType] = [dbo].[CapitalizeFirstLetter](@BusinessType), 
+					[BusinessName] = @BusinessName,
+					[Description] = @Description
+				Where [ID] = @BTID 
+			End
+			Else
+			Begin
+				INSERT INTO [dbo].[BusinessType]
+				([BusinessType],[BusinessName],[Description])
+				values ([dbo].[CapitalizeFirstLetter](@BusinessType), @BusinessName, @Description)
+
+				Select @BTID = B.[ID] from [dbo].[BusinessType] B where B.[BusinessType] = @BusinessType
+			End
+			IF @@TRANCOUNT > 0 commit transaction;
+		End try
+		Begin Catch
+			IF @@TRANCOUNT > 0  
+			      ROLLBACK TRANSACTION;
+			Select @BTID = -1;
+			SELECT ERROR_NUMBER() AS ErrorNumber, ERROR_SEVERITY() AS ErrorSeverity ,ERROR_STATE() AS ErrorState  
+				,ERROR_PROCEDURE() AS ErrorProcedure,ERROR_LINE() AS ErrorLine,ERROR_MESSAGE() AS ErrorMessage; 
+		End catch
+	END
+	GO
+	GRANT EXECUTE ON OBJECT::[dbo].[BusinessTypeUpSert]
+	TO public;
+	GO
+
+SELECT 'STORED PROCEDURE: [dbo].[BusinessTypeUpSert]'
+GO
+
+/* STORED PROCEDURE: [dbo].[LocationUpSert] */
+	drop proc if exists [dbo].[LocationUpSert]
+	GO
+
+	create procedure [dbo].[LocationUpSert]
+		@City nvarchar(150),
+		@State nvarchar(150),
+		@Country nvarchar(150),
+		@ID int Output
+	AS
+	BEGIN
+	Begin Transaction
+		IF (@City is null or @State is null or @Country is null) 
+		begin
+			select @ID = -400	/* bad request */
+			Return -400
+		end
+		Begin try
+			SET @City= [dbo].[CapitalizeFirstLetter](@City)
+			SET @State = [dbo].[CapitalizeFirstLetter](@State)
+			SET @Country = [dbo].[CapitalizeFirstLetter](@Country)
+
+			Select @ID = L.[ID] from [dbo].[Location] L where L.[City] = @City and L.[State] = @State and L.[Country] = @Country
+		
+			If (@ID IS NOT NULL) /* Location exists*/
+			Begin
+				/* No need to update nothing, yet
+				Update [dbo].[Location] 
+				set [City] = [dbo].[CapitalizeFirstLetter](@City), 
+					[State] = [dbo].[CapitalizeFirstLetter](@State),
+					[Country] = [dbo].[CapitalizeFirstLetter](@Country)
+				Where [ID] = @ID
+				*/
+				Select @City = 'dummy' 
+			End
+			Else
+			Begin
+				INSERT INTO [dbo].[Location]
+				([City],[State],[Country])
+				values (@City, @State, @Country)
+
+				Select @ID = L.[ID] from [dbo].[Location] L where L.[City] = @City and L.[State] = @State and L.[City] = @Country
+			End
+			IF @@TRANCOUNT > 0 commit transaction;
+		End try
+		Begin Catch
+			IF @@TRANCOUNT > 0  
+			      ROLLBACK TRANSACTION;
+			Select @ID = -1;
+			SELECT ERROR_NUMBER() AS ErrorNumber, ERROR_SEVERITY() AS ErrorSeverity ,ERROR_STATE() AS ErrorState  
+				,ERROR_PROCEDURE() AS ErrorProcedure,ERROR_LINE() AS ErrorLine,ERROR_MESSAGE() AS ErrorMessage; 
+		End catch
+	END
+	GO
+	GRANT EXECUTE ON OBJECT::[dbo].[LocationUpSert]
+	TO public;
+	GO
+
+select 'STORED PROCEDURE: [dbo].[LocationUpSert]'
+GO
+
+declare @id int
+execute [dbo].[LocationUpSert] 'Kananaskis','Alberta','Canada', @id output
+--select 'Location created ' + convert(varchar(150),@id) 
+/** /upsert location **/
+GO
+declare @id int
+execute [dbo].[LocationUpSert] 'cochrane','alberta','canada', @id output
+--select 'Location created ' + convert(varchar(150),@id) 
+/** /upsert location **/
+GO
+declare @id int
+execute [dbo].[LocationUpSert] 'BANF','ALBERTA','CANADA', @id output
+--select 'Location created ' + convert(varchar(150),@id) 
+/** /upsert location **/
+GO
+declare @id int
+execute [dbo].[LocationUpSert] 'red deer','ALBERTA','CANADA', @id output
+--select 'Location created ' + convert(varchar(150),@id) 
+/** /upsert location **/
+GO
+declare @id int
+execute [dbo].[LocationUpSert] 'st. Albert','ALBERTA','CANADA', @id output
+--select 'Location created ' + convert(varchar(150),@id) 
+/** /upsert location **/
+GO
+
+/** INSERT BUSINESS **/
+
+Declare @BID int
+EXEC dbo.BusinessUpSert	'Pet Market',123, 1, 1,	@BID Output
+--Select ' Business ID ' + convert(varchar(150),@BID) 
+go
+
+/** INSERT BUSINESS TYPE **/
+Declare @BTID int
+EXEC dbo.BusinessTypeUpSert	'Retailer B','RETB','to be deleted', @BTID Output
+--Select ' BusinessType ID ' + convert(varchar(150),@BTID) 
+go
+
+/* STORED PROCEDURE: [dbo].[BusinessNumberUpsert] */
+
+	drop proc if exists [dbo].[BusinessNumberUpsert]
+	GO
+
+	CREATE PROCEDURE [dbo].[BusinessNumberUpsert]
+ 		@ID int,
+		@Year int,
+		@Month int,
+		@Open bit,
+		@Employess int,
+		@Revenue money,
+		@Losses money, 
+		@Operation money, 
+		@Taxes money,
+		@Group money NULL,
+		@Result int Output
+	AS
+	BEGIN
+		DECLARE @BusinessID int
+		DECLARE @New int
+
+		SELECT @BusinessID = B.ID from [dbo].[Business] B where B.ID = @ID
+
+		if ( @BusinessID IS NULL OR @Year IS NULL OR @Month is NULL) /* BUSINESS NOT FOUND */
+		BEGIN
+			SET @Result = -404
+			RETURN -404
+		END
+		
+		SELECT @New = N.ID from [dbo].[Numbers] N where N.[ID] = @ID and N.[Year] = @Year and N.[Month] = @Month 
+
+		Begin Transaction
+		Begin try
+			If (@New IS NOT NULL)   /*update*/
+			Begin
+				Update [dbo].[Numbers] 
+				set 
+				[Open] = @Open,
+				[Employees] = @Employess,
+				[Revenue] = @Revenue,
+				[Losses] =@Losses,
+				[Operation] =@Operation,
+				[Taxes] = @Taxes,
+				[Group] = @Group
+				Where [ID] = @ID 
+			End
+			Else /* new Numbers */
+			Begin
+				INSERT INTO [dbo].[Numbers]
+					([ID], 	[Year],	[Month],[Open],	[Employees],[Revenue], 	[Losses],	[Operation] ,	[Taxes] , 	[Group])
+				values 
+					(@ID,@Year,@Month,@Open,@Employess,@Revenue,@Losses,@Operation,@Taxes,@Group)
+			End
+			IF @@TRANCOUNT > 0 
+			Begin
+				commit transaction;
+				Select @Result = @ID;
+			End
+		End try
+		Begin Catch
+			IF @@TRANCOUNT > 0  
+			      ROLLBACK TRANSACTION;
+			Select @Result = -1;
+			SELECT ERROR_NUMBER() AS ErrorNumber, ERROR_SEVERITY() AS ErrorSeverity ,ERROR_STATE() AS ErrorState  
+				,ERROR_PROCEDURE() AS ErrorProcedure,ERROR_LINE() AS ErrorLine,ERROR_MESSAGE() AS ErrorMessage; 
+		End catch
+	END
+	GO
+
+	GRANT EXECUTE ON OBJECT::[dbo].[BusinessNumberUpsert]
+	TO public;
+	GO
+SELECT 'STORED PROCEDURE: [dbo].[BusinessNumberUpsert]'
+GO
+
+/** INSERT BUSINESS TYPE **/
+Declare @Result int
+EXEC dbo.BusinessNumberUpsert 1,2017,0,1,12,2000,10,1500,100,null,@Result output
+--Select ' Result ' + convert(varchar(150),@Result)
+go
+
+/** INSERT BUSINESS TYPE **/
+Declare @Result int
+EXEC dbo.BusinessNumberUpsert 1,2020,5,1,12,4000,10,1500,100,null,@Result output
+--Select ' Result ' + convert(varchar(150),@Result)
+go
+
+/** BUSINESS not found -404 **/
+Declare @Result int
+EXEC dbo.BusinessNumberUpsert 3,2017,0,1,12,2000,10,1500,100,null,@Result output
+--Select ' Result ' + convert(varchar(150),@Result)
+go
+
+/* STORED PROCEDURE: [dbo].[BusinessNumbers] */
+	drop proc if exists [dbo].[BusinessNumbers]
+	GO
+	drop type if exists [dbo].[tBusinessNumbers]
+	GO
+	Create type  [dbo].[tBusinessNumbers] as TABLE
+	(
+	[ID] int NOT NULL,
+	[Year] int NOT NULL,
+	[Month] int NOT NULL,
+	[Open] bit NOT NULL,
+	[Employees] int NOT NULL,
+	[Revenue] money NOT NULL,
+	[Losses] money NOT NULL,
+	[Operation] money NOT NULL,
+	[Taxes] money NOT NULL
+	)
+	GO
+	drop proc if exists [dbo].[BusinessNumbers]
+	GO
+	Create procedure [dbo].[BusinessNumbers]
+	@TBNumbers [dbo].[tBusinessNumbers] READONLY
+	AS
+	BEGIN
+		declare 
+			@Records int, @Result int,
+			@ID int,
+			@Year int,
+			@Month int,
+			@Open bit,
+			@Employees int,
+			@Revenue money,
+			@Losses money,
+			@Operation money,
+			@Taxes money
+		
+		Select @Records =count(*) from @TBNumbers
+		if @Records = 0 return -40 --bad request
+
+		DECLARE crsBusinesNumbers CURSOR local for
+		SELECT	[ID], [Year],[Month],[Open],[Employees],[Revenue],[Losses],[Operation],[Taxes] 
+		FROM	@TBNumbers 
+
+		OPEN crsBusinesNumbers
+		FETCH NEXT FROM crsBusinesNumbers INTO
+			@ID,@Year ,@Month ,@Open ,@Employees ,@Revenue ,@Losses ,@Operation ,@Taxes
+		
+		WHILE @@FETCH_STATUS = 0
+		Begin
+			exec [dbo].[BusinessNumberUpsert] @ID,@Year ,@Month ,@Open ,@Employees ,@Revenue ,@Losses ,@Operation ,@Taxes,0, @Result output
+			IF (@Result<0)
+			Select 'ERROR: ',@Result, @ID,@Year ,@Month ,@Open ,@Employees ,@Revenue ,@Losses ,@Operation ,@Taxes
+
+			FETCH NEXT FROM crsBusinesNumbers INTO
+			@ID,@Year ,@Month ,@Open ,@Employees ,@Revenue ,@Losses ,@Operation ,@Taxes
+		End
+		
+	END
+	GO
+	GRANT EXECUTE ON OBJECT::[dbo].[BusinessNumbers]
+	TO public;
+	GO
+
+select 'STORED PROCEDURE: [dbo].[BusinessNumbers]'
+GO
+
+Declare @T [dbo].[tBusinessNumbers]
+insert @T VALUES
+(1,2018,1,1,10,828241.00,58804.00,0.00,0.00),
+(1,2019,1,1,10,818241.00,5804.00,0.00,0.00),
+(1,2020,1,0,10,928341.00,58805.00,50.00,20.00),
+(1,2017,1,0,12,932000.00,55510.00,1500.00,100.00),
+(1,2020,2,5,12,844000.00,44410.00,1500.00,100.000)
+EXEC [dbo].[BusinessNumbers] @T
+
+/* STORED PROCEDURE: [dbo].[DetermineGroup] */
+	drop proc if exists [dbo].[DetermineGroup]
+	GO
+	create procedure [dbo].[DetermineGroup]
+	@BID int
+	AS
+	declare Crsr1 Cursor read_only local for 	
+	select ISNULL(SUM(Num.Revenue),0), ISNULL(SUM(Num.Operation),0), ISNULL(SUM(Num.Losses),0), ISNULL(SUM(Num.Taxes),0) 
+	from [dbo].[Numbers] Num where Num.ID = @BID
+	
+	declare 
+		@TotalRevenue money, 
+		@TotalOperation money,
+		@TotalLosses money,
+		@TotalTaxes money,
+		@Group money
+
+	BEGIN
+		IF NOT EXISTS(SELECT distinct N.[ID] from [dbo].[Numbers] N where N.[ID] = @BID)
+		Begin
+			RETURN -404 -- business not found
+		End
+
+		open Crsr1
+		IF CURSOR_STATUS('local','Crsr1') < 1 -- at least one record
+		Begin
+			close Crsr1;
+			Deallocate Crsr1;
+			Return -404;
+		End
+		fetch next from Crsr1 into  @TotalRevenue, @TotalOperation, @TotalLosses, @TotalTaxes
+
+		If @@FETCH_STATUS = 0
+		BEGIN
+			/* Here the group is determined for the business */
+			set @Group = @TotalRevenue - @TotalOperation - @TotalLosses - @TotalTaxes
+			Begin Transaction
+			Begin Try
+				if exists (Select P.BusinessID from [dbo].Probability P where P.BusinessID = @BID)
+				begin
+					Update [dbo].Probability
+					Set TotalLosses = @TotalLosses, TotalOperation = @TotalOperation, TotalRevenue = @TotalRevenue, TotalTaxes=@TotalTaxes, [Group] = @Group
+					where BusinessID =  @BID
+				end
+				else
+				begin
+					Insert into [dbo].Probability
+					([BusinessID], [Type], [Location],[Open],[Years], TotalLosses , TotalOperation , TotalRevenue , TotalTaxes, [Group])
+					values( @BID, 1, 1, 1, 1, @TotalLosses, @TotalOperation, @TotalRevenue, @TotalTaxes, @Group)
+				end
+				close Crsr1
+				Deallocate Crsr1
+			End Try
+			Begin catch
+				Close Crsr1
+				Deallocate Crsr1
+				IF @@TRANCOUNT > 0  
+					ROLLBACK TRANSACTION; 
+				SELECT ERROR_NUMBER() AS ErrorNumber, ERROR_SEVERITY() AS ErrorSeverity ,ERROR_STATE() AS ErrorState  
+						,ERROR_PROCEDURE() AS ErrorProcedure,ERROR_LINE() AS ErrorLine,ERROR_MESSAGE() AS ErrorMessage;  
+			End Catch
+			IF @@TRANCOUNT > 0 commit transaction;
+		END /* if */
+	END
+	GO
+	GRANT EXECUTE ON OBJECT::[dbo].[DetermineGroup]
+	TO public;
+	GO
+	/*
+	GRANT VIEW DEFINITION ON OBJECT::[dbo].[DetermineGroup]
+	TO public;
+	GO
+	*/
+
+SELECT 'STORED PROCEDURE: [dbo].[DetermineGroup]'
+GO
+/** EXECUTE THE PROC TO UPDATE GROUP ON A DESIRED BUSINESS **/
+EXEC [dbo].[DetermineGroup] @BID = 1
+GO
+
+/* VIEWS */
+SELECT 'VIEW 1'
+GO
+/* VIEW [dbo].[Prediction]'
+Select DISTINCT BT.[BusinessType], L.[City], L.[State], L.[Country], P.[Open], P.[Years], P.[TotalRevenue], P.[TotalLosses], P.[TotalOperation], P.[TotalTaxes]  , P.[Group]
+from [dbo].[Business] B, [dbo].[Location] L,[dbo].[Probability] P,[dbo].[Numbers] N, [dbo].BusinessType BT
+where B.ID = P.BusinessID
+and L.ID = B.Location
+and BT.ID = B.Type
+and B.ID = 1
+go
+*/
+
+	drop view if exists [dbo].[Prediction]
+	GO
+	
+	CREATE VIEW [dbo].[Prediction] AS
+		SELECT DISTINCT [B].ID, BT.[BusinessType], L.[City], L.[State], L.[Country], P.[Open], P.[Years], P.[TotalRevenue], P.[TotalLosses], P.[TotalOperation], P.[TotalTaxes]  , P.[Group]
+		from [dbo].[Business] B, [dbo].[Location] L,[dbo].[Probability] P,[dbo].[Numbers] N, [dbo].BusinessType BT
+		where B.ID = P.BusinessID
+		and L.ID = B.Location
+		and BT.ID = B.Type
+	go
+	GRANT SELECT ON OBJECT::[dbo].[Prediction]
+	TO public;
+	GO
+
+SELECT 'VIEW [dbo].[Prediction]'
+GO
+
